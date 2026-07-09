@@ -1,0 +1,50 @@
+# Secrets — 절대 추적 금지
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+tossinvest.env
+
+# Runtime / state
+.history/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Project runtime
+history/*.json
+!history/.gitkeep
+.cache/
+logs/
+*.log
+
+# Local data
+*.db
+*.sqlite3
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Build
+build/
+dist/
+*.egg-info/
+*.egg
+.tox/
+.eggs/
