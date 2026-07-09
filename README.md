@@ -1,6 +1,6 @@
 # 🤖 toss-trader
 
-> 토스증권 Open API + oh-my-openagent 기반 투자 어시스턴트
+> 토스증권 Open API + oh-my-opencode 기반 투자 어시스턴트
 > **paper trading 우선, 실계좌 주문은 명시적 사용자 확인 후에만 실행**
 
 [kstost/stock](https://github.com/kstost/stock)에서 영감을 받아 **우리 스택으로 재설계**한 버전입니다.
@@ -17,15 +17,15 @@ $ python3 -m tosstrader analyze 005930
 ## 🤖 생성 정보
 
 - **기반**: [kstost/stock](https://github.com/kstost/stock) (MIT, kstost) — Next.js + Codex CLI + 토스 Open API
-- **재설계 사유**: Codex `--yolo` + 서버 메모리 평문 보관 → oh-my-openagent + `~/.hermes/secrets/` 패턴으로 이관
-- **분석 엔진**: `oh-my-openagent` (sigil). Node 24+ 기반 도구 호출 화이트리스트
+- **재설계 사유**: Codex `--yolo` + 서버 메모리 평문 보관 → oh-my-opencode + `~/.hermes/secrets/` 패턴으로 이관
+- **분석 엔진**: `oh-my-opencode` (OpenCode 플러그인). bunx 호출, 도구 화이트리스트
 - **대상**: sigco3111의 `~/.hermes/secrets/tossinvest.env` 보유 사용자
 
 ## ✨ 주요 특징
 
 - 🔒 **시크릿 격리** — 토스 API Key/Secret은 `~/.hermes/secrets/tossinvest.env` (chmod 600) 외 노출 0
 - 📝 **Paper trading 기본값** — 실계좌 주문은 `DRY_RUN=false` 명시 후에만 활성
-- 🤖 **oh-my-openagent 분석** — LLM 판단 + 도구 호출 화이트리스트, yolo 미사용
+- 🤖 **oh-my-opencode 분석** — OpenCode 플러그인, 도구 호출 화이트리스트, yolo 미사용
 - 💬 **Telegram confirm** — BUY/SELL은 Telegram inline button 사용자 명시 확인 후
 - 🗂️ **Notion 이력** — 모든 분석/주문은 Notion DB + 로컬 JSON 이중 기록
 - 🛡️ **안전 규칙** — 주문 endpoint 호출은 prompt 단계에서 차단, 사용자 행동지침이 비어있으면 HOLD 우선
@@ -60,7 +60,7 @@ DRY_RUN=false python3 -m tosstrader order buy 005930 --qty 2 --price 81000
 ## 🛠️ 기술 스택
 
 - **언어**: Python 3.11+ (PEP 604 union, 3.8 미지원)
-- **분석 엔진**: `oh-my-openagent` CLI (sigil `~/.local/bin/oh-my-openagent`)
+- **분석 엔진**: `oh-my-opencode` (`bunx oh-my-opencode` v4.16.0+, OpenCode 플러그인)
 - **HTTP**: `httpx` (async) + `tornado` 없음
 - **시크릿**: 환경변수 + `~/.hermes/secrets/tossinvest.env`
 - **이력**: Notion DB (`toss-trader` database) + 로컬 `history/*.json`
@@ -85,7 +85,7 @@ toss-trader/
 │   │   └── paper.py              # paper trading 시뮬
 │   ├── agent/
 │   │   ├── __init__.py
-│   │   ├── openagent.py          # oh-my-openagent 호출 래퍼
+│   │   ├── opencode.py           # oh-my-opencode 호출 래퍼 (bunx)
 │   │   ├── schema.py             # 출력 Zod 스키마
 │   │   └── prompt.py             # 안전 규칙 포함 시스템 프롬프트
 │   ├── notify/
@@ -115,7 +115,7 @@ toss-trader/
 
 | 차원 | 원본 | 우리 |
 |---|---|---|
-| 분석 엔진 | `codex exec --yolo --ephemeral` | `oh-my-openagent` 화이트리스트 |
+| 분석 엔진 | `codex exec --yolo --ephemeral` | `oh-my-opencode` 화이트리스트 |
 | 시크릿 보관 | Next.js 서버 메모리 | `~/.hermes/secrets/` chmod 600 |
 | 주문 실행 | 화면 버튼 즉시 | Telegram inline button + 사용자 확인 |
 | 데이터 | 로컬 JSON only | Notion DB + 로컬 JSON 이중 |
@@ -139,7 +139,7 @@ toss-trader/
     ↓
 [2] broker/toss.py: 시세/잔고/계좌 조회 (GET only, 주문 endpoint 차단)
     ↓
-[3] agent/openagent.py: oh-my-openagent 호출
+[3] agent/opencode.py: oh-my-opencode 호출
     ├─ system prompt: 안전 규칙 (주문 endpoint 호출 금지, HOLD 우선, ...)
     ├─ tool whitelist: 조회 API만 허용
     └─ output schema: Zod 검증

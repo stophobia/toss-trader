@@ -4,7 +4,7 @@ Copyright (c) 2026 sigco3111
 
 Based on kstost/stock (MIT, 2026) — https://github.com/kstost/stock
 Original design: Next.js + Codex CLI + Tossinvest Open API
-This fork: Python + oh-my-openagent + paper-trading-first safety
+This fork: Python + oh-my-opencode (OpenCode plugin) + paper-trading-first safety
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
