@@ -153,6 +153,8 @@ toss-trader/
 [7] history: Notion DB + 로컬 JSON 기록
 ```
 
+> **상세 토스 Open API 레퍼런스 (URL, 발급 절차, 422 안전 가드)**: [`docs/OPENAPI_REFERENCE.md`](docs/OPENAPI_REFERENCE.md)
+
 ## 🔬 검증
 
 - [ ] `pytest -q` 0 실패

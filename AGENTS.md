@@ -16,7 +16,7 @@ toss-trader/
 
 `src/tosstrader/` 구현은 다음 세션부터 단계적으로 채움.
 
-## 절대 어기지 말 것 (Red Lines)
+## 절대 어기지 말 것
 
 1. **시크릿 평문 노출 금지** — 토스 API Key/Secret을 git에 커밋 ❌, Telegram 평문 전송 ❌, 로그 출력 ❌. 유일한 정착처 = `~/.hermes/secrets/tossinvest.env` (chmod 600)
 2. **주문 endpoint 호출은 opt-in** — 기본값 = paper. `DRY_RUN=false` 명시 + Telegram 사용자 confirm 후에만 토스 Open API `POST /api/v1/orders` 등 호출
@@ -86,5 +86,13 @@ pytest -q
 - 5단계: `notify/telegram.py` inline button
 - 6단계: `history/notion.py` + `history/local.py`
 - 7단계: `cli.py` 엔트리포인트 + 통합 테스트
+
+## 📚 참고 자료
+
+- **[docs/OPENAPI_REFERENCE.md](docs/OPENAPI_REFERENCE.md)** — 토스증권 Open API v1.1.5 정식 레퍼런스 (URL, 발급 절차, 422 가드, rate limit)
+- [토스증권 WTS (키 발급)](https://www.tossinvest.com) — 로그인 후 설정 > Open API 메뉴
+- [공식 개발자 문서](https://developers.tossinvest.com/docs) — SPA, LLM 친화 인덱스: `/llms.txt`
+- [Source of truth 개요](https://openapi.tossinvest.com/openapi-docs/overview.md) — 본 프로젝트 API 레퍼런스의 기준
+- [kstost/stock](https://github.com/kstost/stock) — 원본 Next.js 구현 + `tossinvest_apidocs.json`
 
 각 단계마다 `pytest -q` 그린 유지.
