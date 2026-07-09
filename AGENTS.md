@@ -104,21 +104,77 @@ toss-trader/
 git clone https://github.com/sigco3111/toss-trader.git
 cd toss-trader
 
-# 2) 의존성
+# 2) Codex + LazyCodex 설치 (개발자 측 도구)
+brew install --cask codex
+npx lazycodex-ai install
+
+# 3) Codex auth (택 1)
+codex login                       # ChatGPT 플랜
+export OPENAI_API_KEY=sk-...      # API key
+# 또는 NIM plugin 추가 후 NVIDIA_API_KEY
+
+# 4) Node 의존성
 npm install
 
-# 3) Vercel env (서버 측 도구만)
+# 5) Vercel env (서버 측 도구만)
 #    NOTION_API_KEY, TELEGRAM_BOT_TOKEN
 vercel link
 vercel env add NOTION_API_KEY
 vercel env add TELEGRAM_BOT_TOKEN
 
-# 4) (구현 후) 테스트
+# 6) (구현 후) 테스트
 npm run test
 
-# 5) 로컬 dev
+# 7) 로컬 dev
 npm run dev  # http://localhost:3000
 ```
+
+## 🛠️ 개발 도구 — Codex + LazyCodex
+
+toss-trader는 **두 가지 도구 환경**으로 개발합니다.
+
+### 1) Codex (OpenAI 공식) — 사용자 분석 환경
+
+```bash
+brew install --cask codex        # v0.143.0
+codex login                       # ChatGPT 로그인
+codex exec "..."                  # 비대화형
+codex review                      # PR 리뷰
+codex doctor                      # 환경 진단
+```
+
+- **기본 모델**: `gpt-5.5` (OmO 기본, 400k context)
+- **plugin**: `omo@sisyphuslabs` v4.16.0 (자동 설치됨)
+
+### 2) LazyCodex (oh-my-openagent Codex 통합) — 자동화/에이전트
+
+```bash
+npx lazycodex-ai install          # OmO + Codex 통합 (전역 설치 X)
+```
+
+- **26개 스킬**: ultrawork, ulw-loop, start-work, review-work, refactor, debugging, frontend, lsp, ast-grep, comment-checker 등
+- **8개 에이전트**: explorer, librarian, metis, momus, plan, lazycodex-executor, lazycodex-code-reviewer, lazycodex-qa-executor
+- **MCP servers**: context7 (문서), codegraph (코드 그래프), grep_app (GitHub), lsp (언어 서버)
+
+### 3) toss-trader에서 Codex의 역할
+
+| 차원 | Vercel (사용자 분석) | Codex (개발자 코딩) |
+|---|---|---|
+| 호출 위치 | Edge Function HTTP | 개발자 PC TUI/exec |
+| 모델 | NIM/MiniMax/OpenAI (BYOK) | gpt-5.5 또는 NIM plugin |
+| 목적 | 매수/매도 시그널 | Next.js 컴포넌트 자동 생성 |
+| 시크릿 | localStorage | `~/.codex/auth.json` / env |
+
+### 4) NIM plugin 추가 (optional)
+
+```bash
+# NVIDIA marketplace + plugin 추가
+codex plugin marketplace add sisyphuslabs
+codex plugin add nvidia
+# config.toml에 model_providers 등록
+```
+
+> v0.2에서는 Vercel Edge Function이 직접 NIM API 호출. Codex NIM plugin은 optional.
 
 사용자 측:
 

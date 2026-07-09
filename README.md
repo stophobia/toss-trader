@@ -24,6 +24,7 @@ $ open https://toss-trader.vercel.app/
 - **재설계 사유**: 원본과 같은 Next.js 구조 채택 + 다중 LLM (Codex = NIM 경유로 미니맥스 등 공식 지원) + BYOK 시크릿 격리
 - **분석 엔진**: LLM provider 라우터 (NIM / 미니맥스 / GLM-5 / GPT-OSS 120B / DeepSeek V4 Pro / Mistral / Nemotron / OpenAI)
 - **대상**: sigco3111 + 토스증권 WTS 계좌 보유 일반 개인 (사업자등록증 무관)
+- **개발 도구**: OpenAI Codex CLI 0.143.0 + [LazyCodex](https://github.com/code-yeongyu/lazycodex) v4.16.0 (oh-my-openagent Codex 통합)
 
 ## ✨ 주요 특징
 
@@ -72,6 +73,74 @@ vercel --prod --yes --token $(cat ~/.hermes/secrets/vercel_token.txt)
 - **이력**: Notion DB (`toss-trader` database)
 - **알림**: Telegram Bot API (inline keyboard)
 - **테스트**: `vitest` + MSW (HTTP mock)
+
+## 🛠️ 개발 도구 — Codex + LazyCodex
+
+toss-trader는 **두 가지 도구 환경**으로 개발합니다.
+
+### 1) Codex (OpenAI 공식) — 사용자 분석 환경
+
+```bash
+brew install --cask codex   # v0.143.0
+codex login                  # ChatGPT 로그인 또는 OPENAI_API_KEY env
+codex                        # TUI 진입
+codex exec "..."             # 비대화형 실행
+codex review                 # PR 리뷰
+codex doctor                 # 환경 진단
+```
+
+- **사용 사례**: Next.js 보일러플레이트 생성, TypeScript 타입 정의, 단위 테스트
+- **모델**: 기본 `gpt-5.5` (OmO 기본값, 400k context)
+- **plugin**: omO v4.16.0 (sisyphuslabs marketplace)
+
+### 2) LazyCodex (oh-my-openagent Codex 통합) — 자동화/에이전트
+
+```bash
+npx lazycodex-ai install     # OmO + Codex 통합 (전역 설치 X, 항상 npx)
+```
+
+- **26개 스킬** 자동 동기화: `ultrawork`, `ulw-loop`, `start-work`, `review-work`, `refactor`, `debugging`, `frontend`, `lsp`, `ast-grep`, `comment-checker` 등
+- **8개 에이전트** 자동 등록: `explorer`, `librarian`, `metis`, `momus`, `plan`, `lazycodex-executor`, `lazycodex-code-reviewer`, `lazycodex-qa-executor`
+- **23개 hooks** 자동 트리거: session_start, user_prompt_submit, pre_tool_use, post_tool_use, stop, subagent_stop 등
+- **MCP servers** 자동 등록: `context7` (문서 조회), `codegraph` (코드 그래프), `grep_app` (GitHub 검색), `lsp` (언어 서버)
+
+### 3) toss-trader에서 Codex의 역할
+
+| 차원 | Vercel (사용자 분석) | Codex (개발자 코딩) |
+|---|---|---|
+| 호출 위치 | `app/api/llm/route.ts` (Edge Function) | 사용자 PC (개발자 측) |
+| 모델 | NIM/MiniMax/OpenAI (BYOK localStorage) | Codex 자체 (OpenAI 또는 NIM plugin) |
+| 목적 | 매수/매도 시그널 | Next.js 컴포넌트 자동 생성 |
+| 시크릿 | localStorage | `~/.codex/auth.json` 또는 `OPENAI_API_KEY` env |
+
+### 4) Codex NIM plugin 추가 (NVIDIA 카탈로그)
+
+Codex는 기본 OpenAI 모델이지만 NIM/MiniMax 카탈로그 추가 가능:
+
+```bash
+# 1) NVIDIA marketplace 추가
+codex plugin marketplace add sisyphuslabs/nvidia  # 또는 codex plugin marketplace add https://github.com/openai/plugins/tree/main/plugins/nvidia
+codex plugin list
+# 2) NVIDIA plugin 설치
+codex plugin add nvidia
+# 3) ~/.codex/config.toml에 provider 등록 (NIM API key 필요)
+```
+
+**현재 v0.2에서 이 단계는 optional** — Vercel Edge Function이 직접 NIM API 호출. Codex는 개발자 코딩 보조용.
+
+### 5) Codex auth 옵션
+
+```bash
+# A. ChatGPT 로그인 (Plus/Pro/Business 플랜 사용자)
+codex login
+
+# B. OpenAI API key
+export OPENAI_API_KEY=sk-...
+# 또는 ~/.codex/auth.json에 직접
+
+# C. NIM/MiniMax (plugin 설치 후)
+export NVIDIA_API_KEY=nvapi-...
+```
 
 ## 📂 프로젝트 구조
 
@@ -212,12 +281,14 @@ toss-trader/
 - **v0.0 (2026-07-09)**: kstost/stock 영감 + 우리 스택 (Python + oh-my-opencode + CLI + Telegram) 1차 스캐폴드
 - **v0.1 (2026-07-09)**: docs/OPENAPI_REFERENCE.md 정식 문서 (URL + 발급 + 422 + rate limit)
 - **v0.2 (2026-07-09)**: 아키텍처 결정 — Next.js + Vercel + BYOK + 다중 LLM (NIM/미니맥스/OpenAI) + Codex 미니맥스 공식 지원 활용
+- **v0.3 (2026-07-09)**: 개발 도구 통합 — Codex CLI 0.143.0 + LazyCodex v4.16.0 (oh-my-openagent Codex 통합) 설치 및 README 반영
 
 ## 🤝 원본 크레딧
 
 - 원본: [kstost/stock](https://github.com/kstost/stock) (MIT License, 2026) — Next.js 15 + Codex CLI + Tossinvest Open API
 - LLM provider 카탈로그: [openai/plugins/nvidia](https://github.com/openai/plugins/tree/main/plugins/nvidia) (NVIDIA 공식 Codex 플러그인, 미니맥스 M2.7 등 6종)
 - OpenAI Codex docs: [developers.openai.com/codex](https://developers.openai.com/codex)
+- [LazyCodex](https://github.com/code-yeongyu/lazycodex) — oh-my-openagent Codex 통합 (v4.16.0)
 
 ## 📜 License
 
