@@ -39,10 +39,8 @@ yarn-error.log*
 .vercel
 
 # typescript
-*.tsbuildinfo
-next-env.d.ts
-
-
+/playwright-report/
+/playwright/.cache/
 # Runtime / state
 .history/
 __pycache__/
@@ -91,3 +89,8 @@ CLAUDE.md
 # Raw research cache (not tracked — local only)
 # 2026-07-09: 토스 Open API 자료 캐시 (Hermes auto-researcher)
 docs/raw/
+
+# Playwright e2e
+/test-results/
+/playwright-report/
+/playwright/.cache/
