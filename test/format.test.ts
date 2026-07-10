@@ -13,6 +13,9 @@ import {
   calcEvalAmount,
   formatChange,
   formatKrwShort,
+  findHoldingBySymbol,
+  getSellableQuantity,
+  type HoldingItem,
 } from "@/lib/format";
 
 describe("formatKRW", () => {
@@ -154,5 +157,52 @@ describe("formatKrwShort", () => {
   });
   it("7,500 → '7,500'", () => {
     expect(formatKrwShort(7500)).toBe("7,500");
+  });
+});
+
+// ─── v1.1.5: 매도 helper ──────────────────────────────────
+describe("findHoldingBySymbol", () => {
+  const sampleHoldings: HoldingItem[] = [
+    { symbol: "005930", symbolName: "삼성전자", quantity: 10, avgPrice: 70000 },
+    { symbol: "000660", symbolName: "SK하이닉스", quantity: 5, avgPrice: 130000 },
+    { symbol: "035720", symbolName: "카카오", quantity: 20, avgPrice: 50000 },
+  ];
+
+  it("매칭되는 symbol → 해당 holding 반환", () => {
+    const r = findHoldingBySymbol(sampleHoldings, "005930");
+    expect(r).toBeDefined();
+    expect(r?.symbolName).toBe("삼성전자");
+    expect(r?.quantity).toBe(10);
+    expect(r?.avgPrice).toBe(70000);
+  });
+
+  it("없는 symbol → undefined", () => {
+    expect(findHoldingBySymbol(sampleHoldings, "999999")).toBeUndefined();
+  });
+
+  it("빈 symbol → undefined", () => {
+    expect(findHoldingBySymbol(sampleHoldings, "")).toBeUndefined();
+  });
+
+  it("빈 holdings 배열 → undefined", () => {
+    expect(findHoldingBySymbol([], "005930")).toBeUndefined();
+  });
+});
+
+describe("getSellableQuantity", () => {
+  it("holding 있음 → quantity 그대로", () => {
+    expect(getSellableQuantity({ symbol: "005930", quantity: 10, avgPrice: 70000 })).toBe(10);
+  });
+
+  it("holding undefined → 0", () => {
+    expect(getSellableQuantity(undefined)).toBe(0);
+  });
+
+  it("quantity 0 → 0 (음수 방지)", () => {
+    expect(getSellableQuantity({ symbol: "005930", quantity: -5, avgPrice: 70000 })).toBe(0);
+  });
+
+  it("quantity 소수 → 내림 (Math.floor)", () => {
+    expect(getSellableQuantity({ symbol: "005930", quantity: 10.7, avgPrice: 70000 })).toBe(10);
   });
 });

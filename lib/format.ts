@@ -59,6 +59,35 @@ export function calcEvalAmount(currentPrice: number, quantity: number): number {
   return currentPrice * quantity;
 }
 
+// ─── v1.1.5: 매도 시 보유 종목 helper ─────────────────────
+/**
+ * Portfolio에서 받은 holdings 배열에서 symbol 매칭.
+ * OrderButton 매도 시 quantity/avgPrice 자동 채움용.
+ */
+export interface HoldingItem {
+  symbol: string;
+  symbolName?: string;
+  quantity: number;
+  avgPrice: number;
+  currentPrice?: number; // Portfolio에서 자동 fetch한 현재가
+}
+
+export function findHoldingBySymbol(
+  holdings: ReadonlyArray<HoldingItem>,
+  symbol: string
+): HoldingItem | undefined {
+  if (!symbol) return undefined;
+  return holdings.find((h) => h.symbol === symbol);
+}
+
+/**
+ * 매도 가능 수량 (보유 수량 그대로, 미래 확장 시 빔/수량 제한 가능)
+ */
+export function getSellableQuantity(holding: HoldingItem | undefined): number {
+  if (!holding) return 0;
+  return Math.max(0, Math.floor(holding.quantity));
+}
+
 // ─── 시세 변화 포맷 ───────────────────────────────────────────
 export function formatChange(currentPrice: number, prevClose: number): {
   amount: number;

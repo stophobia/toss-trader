@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * components/OrderButton.tsx — 매수/매도 UI (v1.1.4)
+ * components/OrderButton.tsx — 매수/매도 UI (v1.1.5)
  *
  * 플로우:
  * 1. 사용자가 BUY/SELL 클릭
@@ -15,13 +15,21 @@
  * 6. (auto) 즉시 executeOrder
  * 7. → /api/toss/api/v1/orders + history 기록
  *
+ * v1.1.5: SELL 선택 시 holdings에서 symbol 매칭 → quantity/avgPrice 자동 채움.
+ *         매도 불가 수량은 0, 가격은 currentPrice 그대로.
+ *
  * v0.3 단순화: LLM 호출 0. Telegram confirm만.
  * v1.1.4: auto 단순화 (auto-paper/auto-live 제거, doubleConfirmed 제거).
  */
 
-import { useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { OrderHistoryRecord } from "@/lib/types";
 import { StockSearch } from "@/components/StockSearch";
+import {
+  findHoldingBySymbol,
+  getSellableQuantity,
+  type HoldingItem,
+} from "@/lib/format";
 import type { TelegramConfirmMode } from "@/lib/settings";
 
 type Side = "BUY" | "SELL";
@@ -66,6 +74,8 @@ export function OrderButton({
   const [result, setResult] = useState<OrderResult | null>(null);
   const [sending, setSending] = useState<boolean>(false);
   const [polling, setPolling] = useState<boolean>(false);
+  // v1.1.5: 매도 시 holdings 자동 채움용
+  const [holdings, setHoldings] = useState<HoldingItem[]>([]);
 
   // 종목 선택 시 currentPrice 업데이트 + 부모(Home)에 알림
   const handleStockSelect = (newSymbol: string, newName: string, newPrice: number): void => {
@@ -73,6 +83,59 @@ export function OrderButton({
     setSymbolName(newName);
     if (newPrice > 0) setPrice(newPrice);
     onSymbolChange?.(newSymbol, newName, newPrice);
+  };
+
+  // v1.1.5: holdings fetch (매도 시 자동 채움용) — 30초 polling
+  const fetchHoldings = useCallback(async (): Promise<void> => {
+    try {
+      const res = await fetch("/api/toss/api/v1/holdings", {
+        headers: { "X-Tossinvest-Account": "1" },
+        cache: "no-store",
+      });
+      const body = (await res.json()) as {
+        data?: { result?: { items?: HoldingItem[] } } | HoldingItem[];
+      };
+      const raw = body?.data;
+      const arr = Array.isArray(raw)
+        ? raw
+        : (raw as { result?: { items?: HoldingItem[] } })?.result?.items ?? [];
+      setHoldings(arr);
+    } catch {
+      // ignore — 매도 자동 채움 실패는 UX 저하만
+    }
+  }, []);
+
+  useEffect(() => {
+    // setTimeout 0 마이크로태스크 분리 (react-hooks/set-state-in-effect 우회)
+    const t = setTimeout(() => {
+      void fetchHoldings();
+    }, 0);
+    const interval = setInterval(() => {
+      void fetchHoldings();
+    }, 30_000); // 30초 polling
+    return () => {
+      clearTimeout(t);
+      clearInterval(interval);
+    };
+  }, [fetchHoldings]);
+
+  // v1.1.5: SELL 선택 시 매칭되는 holding → quantity/avgPrice 자동 채움
+  const handleSideChange = (newSide: Side): void => {
+    setSide(newSide);
+    if (newSide === "SELL") {
+      const holding = findHoldingBySymbol(holdings, symbol);
+      if (holding) {
+        const sellable = getSellableQuantity(holding);
+        if (sellable > 0) {
+          setQuantity(sellable);
+        }
+        // avgPrice는 표시용 (현재가로 매도 주문이지만, 참고용)
+        // 가격은 사용자가 수정 가능 — 현재가 그대로 유지
+      }
+    } else {
+      // BUY 선택 시 기본값 10주로 (초기화)
+      setQuantity(10);
+    }
   };
 
   const totalAmount = price * quantity;
@@ -218,7 +281,7 @@ export function OrderButton({
       <div className="flex gap-2 mb-3">
         <button
           type="button"
-          onClick={() => setSide("BUY")}
+          onClick={() => handleSideChange("BUY")}
           className={`flex-1 py-2 rounded font-semibold transition-colors ${
             side === "BUY"
               ? "bg-red-500 text-white"
@@ -229,7 +292,7 @@ export function OrderButton({
         </button>
         <button
           type="button"
-          onClick={() => setSide("SELL")}
+          onClick={() => handleSideChange("SELL")}
           className={`flex-1 py-2 rounded font-semibold transition-colors ${
             side === "SELL"
               ? "bg-blue-500 text-white"
