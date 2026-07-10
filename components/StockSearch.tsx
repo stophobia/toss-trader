@@ -77,15 +77,18 @@ export function StockSearch({ onSelect, defaultSymbol = "005930", defaultName = 
     }
   };
 
-  // defaultSymbol prop이 있으면 한 번 초기화
+  // defaultSymbol prop은 초기 마운트 시 1회만 적용 (ref 패턴)
+  const initializedRef = useRef<boolean>(false);
   useEffect(() => {
-    if (defaultSymbol && !query) {
+    if (!initializedRef.current && defaultSymbol) {
+      initializedRef.current = true;
       // setTimeout 0으로 마이크로태스크 분리 (react-hooks/set-state-in-effect 우회)
       const t = setTimeout(() => setQuery(defaultName), 0);
       return () => clearTimeout(t);
     }
     return undefined;
-  }, [defaultSymbol, defaultName, query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div ref={wrapRef} className="relative">
