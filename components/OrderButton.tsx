@@ -1,18 +1,20 @@
 "use client";
 
 /**
- * components/OrderButton.tsx — 매수/매도 UI (4단계)
+ * components/OrderButton.tsx — 매수/매도 UI (v1.1.2)
  *
  * 플로우:
  * 1. 사용자가 BUY/SELL 클릭
  * 2. confirm 모달 띄움 (가격/수량/총액)
- * 3. 모달 "발송" 클릭 → POST /api/telegram/send
- * 4. 응답으로 받은 orderId 표시
- * 5. (real 봇) Telegram 메시지의 [확인] 클릭
- *    → /api/telegram/callback이 orderId confirmed로 갱신
- *    → 클라이언트가 자동으로 POST /api/toss/.../orders + body.telegramConfirmed=true
- *    (dev fallback) 자동 confirm → 5) 동일
- * 6. 4~5초 polling으로 orderId 상태 확인 (실제로는 SSE가 더 깔끔, 4단계에선 polling)
+ * 3. "발송" 클릭 → POST /api/telegram/send
+ *    - telegram: 메시지 발송 → 사용자 [확인]
+ *    - auto-paper: 즉시 confirmed
+ *    - auto-live: 2차 confirm 모달 (5초 카운트다운) → doubleConfirmed=true 재요청
+ *    - off: 423 차단
+ * 4. (real 봇) Telegram [확인] 클릭 → executeOrder
+ * 5. (dev fallback) 3초 후 자동 confirm → executeOrder
+ * 6. (auto-paper/auto-live) 즉시 executeOrder
+ * 7. → /api/toss/api/v1/orders + history 기록
  *
  * v0.3 단순화: LLM 호출 0. Telegram confirm만.
  */
@@ -20,6 +22,8 @@
 import { useState } from "react";
 import type { OrderHistoryRecord } from "@/lib/types";
 import { StockSearch } from "@/components/StockSearch";
+import { DoubleConfirmModal } from "@/components/DoubleConfirmModal";
+import type { TelegramConfirmMode } from "@/lib/settings";
 
 type Side = "BUY" | "SELL";
 
@@ -28,7 +32,7 @@ interface OrderButtonProps {
   symbolName?: string;
   currentPrice: number;
   onSymbolChange?: (symbol: string, name: string, price: number) => void;
-  confirmMode: "telegram" | "auto" | "off";
+  confirmMode: TelegramConfirmMode;
 }
 
 export interface PendingOrder {
@@ -36,7 +40,7 @@ export interface PendingOrder {
   devFallback: boolean;
   expiresAt: string;
   message: string;
-  mode?: "telegram" | "auto" | "off"; // v1.1.1
+  mode?: TelegramConfirmMode;
 }
 
 interface OrderResult {
@@ -59,10 +63,12 @@ export function OrderButton({
   const [price, setPrice] = useState<number>(initialPrice);
   const [quantity, setQuantity] = useState<number>(10);
   const [showModal, setShowModal] = useState<boolean>(false);
+  const [showDoubleConfirm, setShowDoubleConfirm] = useState<boolean>(false);
   const [pending, setPending] = useState<PendingOrder | null>(null);
   const [result, setResult] = useState<OrderResult | null>(null);
   const [sending, setSending] = useState<boolean>(false);
   const [polling, setPolling] = useState<boolean>(false);
+  const [autoLiveOrderId, setAutoLiveOrderId] = useState<string | null>(null);
 
   // 종목 선택 시 currentPrice 업데이트 + 부모(Home)에 알림
   const handleStockSelect = (newSymbol: string, newName: string, newPrice: number): void => {
@@ -75,10 +81,11 @@ export function OrderButton({
   const totalAmount = price * quantity;
 
   // ── 1. 발송 (Telegram confirm 요청) ──
-  const handleSend = async () => {
+  const handleSend = async (): Promise<void> => {
     setSending(true);
     setResult(null);
     try {
+      // v1.1.2: auto-live는 doubleConfirmed=false (1차) → 2차 모달 띄움
       const res = await fetch("/api/telegram/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,17 +94,23 @@ export function OrderButton({
           side,
           quantity,
           price,
-          confirmMode, // v1.1.1
+          confirmMode,
+          doubleConfirmed: confirmMode !== "auto-live",
         }),
       });
       const data = await res.json();
       if (data.ok) {
         setPending(data as PendingOrder);
         setShowModal(false);
-        // v1.1.1: auto 모드는 confirm 폴링 불필요 (즉시 confirmed)
-        if (data.mode === "auto" || data.devFallback) {
+        // v1.1.2: auto-paper/auto-live(doubleConfirmed=true)는 confirm 폴링 불필요
+        if (data.mode === "auto-paper" || data.mode === "auto-live" || data.devFallback) {
           startPolling(data.orderId);
         }
+      } else if (data.mode === "auto-live") {
+        // v1.1.2: auto-live 1차 호출 → ok:false (2차 confirm 필요)
+        setShowModal(false);
+        setAutoLiveOrderId(data.orderId);
+        setShowDoubleConfirm(true);
       } else {
         setResult({ ok: false, code: data.code, message: data.message });
       }
@@ -109,15 +122,14 @@ export function OrderButton({
   };
 
   // ── 2. Polling (실제 봇 confirm 대기) ──
-  const startPolling = async (orderId: string) => {
+  const startPolling = async (orderId: string): Promise<void> => {
     setPolling(true);
-    const startTime = Date.now(); // eslint-disable-line react-hooks/purity -- 이벤트 핸들러 안, render 아님
+    // eslint-disable-next-line react-hooks/purity -- 이벤트 핸들러 안, render 아님
+    const startTime = Date.now();
     const pollInterval = 1000; // 1초
     const poll = async (): Promise<void> => {
       try {
-        // dev fallback: orderId가 confirmed로 자동 갱신됨. fetch status는 route에서 노출 안 함.
-        // 실제 환경에서는 /api/telegram/status/{orderId} 같은 endpoint 필요 (4단계에선 단순화).
-        // 3초 후 자동 confirm 시도 (polling)
+        // dev fallback: orderId가 confirmed로 자동 갱신됨. 3초 후 자동 confirm 시도
         if (Date.now() - startTime > 3000) {
           await executeOrder(orderId);
           return;
@@ -132,8 +144,43 @@ export function OrderButton({
     void poll();
   };
 
+  // ── 2-2. v1.1.2 auto-live 2차 confirm → 재요청 ──
+  const handleDoubleConfirm = async (): Promise<void> => {
+    if (!autoLiveOrderId) return;
+    setSending(true);
+    setResult(null);
+    try {
+      // 2차 호출: doubleConfirmed=true → 즉시 confirmed
+      const res = await fetch("/api/telegram/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol,
+          side,
+          quantity,
+          price,
+          confirmMode: "auto-live",
+          doubleConfirmed: true,
+        }),
+      });
+      const data = await res.json();
+      setShowDoubleConfirm(false);
+      if (data.ok) {
+        setPending(data as PendingOrder);
+        // auto-live는 confirmed → 바로 주문 실행
+        void startPolling(data.orderId);
+      } else {
+        setResult({ ok: false, code: data.code, message: data.message });
+      }
+    } catch (e) {
+      setResult({ ok: false, message: (e as Error).message });
+    } finally {
+      setSending(false);
+    }
+  };
+
   // ── 3. 주문 실행 (toss relay) + history write ──
-  const executeOrder = async (orderId: string) => {
+  const executeOrder = async (orderId: string): Promise<void> => {
     const epochSeconds = Math.floor(Date.now() / 1000);
     try {
       const res = await fetch("/api/toss/api/v1/orders", {
@@ -153,6 +200,7 @@ export function OrderButton({
       if (res.ok) {
         setResult({ ok: true, data });
         setPending(null);
+        setShowDoubleConfirm(false);
 
         // 6단계: history 기록 (kstost 방식 — 로컬 JSON, Vercel에서 readonly 시 silent fail)
         try {
@@ -164,11 +212,13 @@ export function OrderButton({
             request: { symbol, side, quantity, price, orderType: "LIMIT", telegramConfirmed: true },
             response: { ok: true, httpStatus: res.status, body: data },
           };
-          const fd = new FormData();
-          fd.append("record", JSON.stringify(record));
-          await fetch("/api/history", { method: "POST", body: fd }).catch(() => undefined);
+          await fetch("/api/history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ record }),
+          }).catch(() => undefined);
         } catch {
-          // history write 실패는 주문 자체에 영향 없음
+          // ignore
         }
       } else {
         setResult({ ok: false, code: data.code, message: data.message, data });
@@ -199,7 +249,6 @@ export function OrderButton({
     }
   };
 
-  // ── 4. 모달 안의 UI ──
   return (
     <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 bg-white dark:bg-zinc-950">
       {/* 종목 선택 */}
@@ -332,7 +381,7 @@ export function OrderButton({
         </div>
       )}
 
-      {/* confirm 모달 */}
+      {/* confirm 모달 (1차) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-zinc-950 rounded-lg p-6 max-w-md w-full">
@@ -371,7 +420,7 @@ export function OrderButton({
               </button>
               <button
                 type="button"
-                onClick={handleSend}
+                onClick={() => void handleSend()}
                 disabled={sending}
                 className="flex-1 py-2 rounded bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 font-semibold disabled:opacity-50"
               >
@@ -381,6 +430,22 @@ export function OrderButton({
           </div>
         </div>
       )}
+
+      {/* v1.1.2: 실계좌 2차 confirm 모달 (auto-live 모드) */}
+      <DoubleConfirmModal
+        open={showDoubleConfirm}
+        symbol={symbol}
+        symbolName={symbolName}
+        side={side}
+        quantity={quantity}
+        price={price}
+        totalAmount={totalAmount}
+        onConfirm={() => void handleDoubleConfirm()}
+        onCancel={() => {
+          setShowDoubleConfirm(false);
+          setAutoLiveOrderId(null);
+        }}
+      />
     </div>
   );
 }

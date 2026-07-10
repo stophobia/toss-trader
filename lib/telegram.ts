@@ -79,6 +79,7 @@ export interface OrderRequest {
   quantity: number;
   price: number;
   accountSeq?: number;
+  doubleConfirmed?: boolean; // v1.1.2: auto-live 모드에서 2차 confirm 게이트
 }
 
 export interface SendResult {
@@ -87,13 +88,13 @@ export interface SendResult {
   devFallback: boolean;
   expiresAt: string;
   message: string;
-  mode: "telegram" | "auto" | "off"; // v1.1.1: 추가
+  mode: "telegram" | "auto-paper" | "auto-live" | "off"; // v1.1.2
 }
 
 // ─── sendOrderConfirm ────────────────────────────────────────────
 export async function sendOrderConfirm(
   req: OrderRequest,
-  mode: "telegram" | "auto" | "off" = "telegram"
+  mode: "telegram" | "auto-paper" | "auto-live" | "off" = "telegram"
 ): Promise<SendResult> {
   const orderId = generateOrderId();
   const now = Date.now();
@@ -115,9 +116,9 @@ export async function sendOrderConfirm(
   pendingStore.set(orderId, pending);
   cleanupExpired();
 
-  // ── 모드별 분기 (v1.1.1) ──
+  // ── 모드별 분기 (v1.1.2) ──
   if (mode === "off") {
-    // 비활성화 모드: confirm 자체 안 함 → store에서 제거 (호출자가 가드 5에서 막힘)
+    // 비활성화 모드: confirm 자체 안 함 → store에서 제거
     pendingStore.delete(orderId);
     return {
       ok: false,
@@ -129,8 +130,8 @@ export async function sendOrderConfirm(
     };
   }
 
-  if (mode === "auto") {
-    // 자동 confirm: 즉시 status=confirmed
+  if (mode === "auto-paper") {
+    // paper 자동 confirm: 즉시 status=confirmed
     pending.status = "confirmed";
     return {
       ok: true,
@@ -138,8 +139,36 @@ export async function sendOrderConfirm(
       devFallback: false,
       expiresAt: new Date(expiresAt).toISOString(),
       message:
-        "TELEGRAM_CONFIRM_MODE=auto 모드. 사용자 confirm 없이 즉시 confirmed. dev/test 전용.",
-      mode: "auto",
+        "TELEGRAM_CONFIRM_MODE=auto-paper 모드. paper 거래 즉시 confirmed.",
+      mode: "auto-paper",
+    };
+  }
+
+  if (mode === "auto-live") {
+    // 실계좌 자동 confirm: v1.1.2에서 doubleConfirmed=false로 pending 유지
+    // → 호출자가 2차 confirm 모달 후 doubleConfirmed=true로 재호출 또는
+    // → body에 doubleConfirmed 헤더/필드 포함 시 즉시 confirmed
+    if (req.doubleConfirmed) {
+      pending.status = "confirmed";
+      return {
+        ok: true,
+        orderId,
+        devFallback: false,
+        expiresAt: new Date(expiresAt).toISOString(),
+        message:
+          "TELEGRAM_CONFIRM_MODE=auto-live 모드. UI 2차 confirm 완료. 실계좌 confirmed.",
+        mode: "auto-live",
+      };
+    }
+    // doubleConfirmed 없으면 pending 유지 (호출자가 2차 confirm 모달 띄움)
+    return {
+      ok: false,
+      orderId,
+      devFallback: false,
+      expiresAt: new Date(expiresAt).toISOString(),
+      message:
+        "TELEGRAM_CONFIRM_MODE=auto-live 모드. UI 2차 confirm 필요 (doubleConfirmed=true).",
+      mode: "auto-live",
     };
   }
 
