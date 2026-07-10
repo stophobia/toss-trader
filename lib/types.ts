@@ -1,93 +1,70 @@
-/**
- * lib/types.ts — toss-trader 공유 타입 (6단계)
- *
- * 영감: kstost/stock/lib/types.ts (MIT)
- * v0.3 단순화: 시크릿 (apiKey/secretKey) 절대 저장 안 함.
- * HistoryRecord에는 API 응답 + 분석 결과만 보관.
- */
-
-// ─── 마켓 / 통화 ───────────────────────────────────────────────
 export type Market = "KR" | "US";
+export type TradeAction = "BUY" | "SELL" | "HOLD";
 export type Currency = "KRW" | "USD";
 
-// ─── 주문 / 분석 액션 ─────────────────────────────────────────
-export type TradeAction = "BUY" | "SELL" | "HOLD";
-export type OrderSide = "BUY" | "SELL";
-
-// ─── 분석 추천 (오빠 PC의 OpenCode가 생성, toss-trader는 저장만) ─
-export interface AgentReference {
+export type AgentReference = {
   title: string;
   url: string;
   reason: string;
-}
+};
 
-export interface AgentOrder {
+export type AgentOrder = {
   quantity: number;
   limitPrice: number;
   currency: Currency;
-}
+};
 
-export interface AgentRecommendation {
+export type AgentRecommendation = {
   symbol: string;
   market: Market;
   decision: {
     action: TradeAction;
-    confidence: number; // 0~1
+    confidence: number;
     reason: string;
   };
   order: AgentOrder | null;
   references: AgentReference[];
-}
+};
 
-// ─── HistoryRecord (3종) ──────────────────────────────────────
-export interface AnalysisHistoryRecord {
+export type SessionState = {
+  id: string;
+  createdAt: string;
+  apiKey: string;
+  secretKey: string;
+  instructions: string;
+  intervalSeconds: number;
+  latestRecommendation: AgentRecommendation | null;
+  latestHistoryFile: string | null;
+};
+
+export type AnalysisHistoryRecord = {
   kind: "analysis";
   epochSeconds: number;
   createdAt: string;
-  symbol: string;
+  sessionId: string;
   recommendation: AgentRecommendation;
-  rawAssistantMessage?: string; // OpenCode 응답 원본
-}
+  rawAssistantMessage: string;
+  diagnostics: {
+    exitCode: number | null;
+    stdout: string;
+    stderr: string;
+  };
+};
 
-export interface OrderHistoryRecord {
+export type OrderHistoryRecord = {
   kind: "order";
   epochSeconds: number;
   createdAt: string;
-  orderId: string; // lib/telegram.ts의 orderId
+  sessionId: string;
   request: {
     symbol: string;
-    side: OrderSide;
-    quantity: number;
-    price: number;
-    orderType: "LIMIT" | "MARKET";
-    telegramConfirmed: boolean;
+    market: Market;
+    side: "BUY" | "SELL";
+    quantity: string;
+    limitPrice: string;
+    currency: Currency;
   };
-  response: {
-    ok: boolean;
-    httpStatus: number;
-    body: unknown; // toss-trader envelope 전체
-  };
-  // 시크릿은 절대 저장 안 함
-}
+  response: unknown;
+};
 
-export interface SnapshotHistoryRecord {
-  kind: "snapshot";
-  epochSeconds: number;
-  createdAt: string;
-  accountSeq: number;
-  totalEval: number;
-  totalInvested: number;
-  totalPnL: number;
-  totalPnLRate: number;
-  holdings: Array<{
-    symbol: string;
-    symbolName?: string;
-    quantity: number;
-    avgPrice: number;
-    currentPrice: number;
-    pnl: number;
-    pnlRate: number;
-  }>;
-}
-
-export type HistoryRecord = AnalysisHistoryRecord | OrderHistoryRecord | SnapshotHistoryRecord;
+export type HistoryRecord = AnalysisHistoryRecord | OrderHistoryRecord;

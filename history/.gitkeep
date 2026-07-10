@@ -1,4 +1,0 @@
-# toss-trader history 디렉토리 (kstost/stock 원본 방식)
-# - 각 record = 1 JSON 파일
-# - 파일명: <epochSeconds>.json (또는 <epochSeconds>-<counter>.json)
-# - 절대 추적 금지: history/*.json (Vercel ephemeral, .gitignore에서 처리)

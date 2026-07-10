@@ -1,96 +1,40 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+node_modules/
 
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
+# Next.js
+.next/
+out/
 
 # production
-/build
+build/
+dist/
 
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
+# environment
 .env
 .env.*
 !.env.example
 
-# vercel
-.vercel
-
-# typescript
-/playwright-report/
-/playwright/.cache/
-# Runtime / state
-.history/
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-.venv/
-venv/
-env/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-
-# Project runtime
-history/*.json
-!history/.gitkeep
-.cache/
-logs/
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 *.log
 
-# Local data
-*.db
-*.sqlite3
+# local runtime data
+history/
 
-# IDE / OS
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# OS/editor
+.DS_Store
+Thumbs.db
 .idea/
 .vscode/
-Thumbs.db
-*.swp
-*.swo
 
-# Build (Python)
-build/
-dist/
-*.egg-info/
-*.egg
-.tox/
-.eggs/
-
-# CLAUDE.md는 oh-my-opencode 미사용으로 추적 안 함
-CLAUDE.md
-
-# Raw research cache (not tracked — local only)
-# 2026-07-09: 토스 Open API 자료 캐시 (Hermes auto-researcher)
-docs/raw/
-
-# Playwright e2e
-/test-results/
-/playwright-report/
-/playwright/.cache/
+# test artifacts
+playwright-report/
+test-results/
+coverage/

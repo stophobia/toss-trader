@@ -1,88 +1,52 @@
-/**
- * lib/history.ts — toss-trader 이력 저장 facade (v1.3)
- *
- * v1.3: STORAGE_PROVIDER env로 local/s3 선택.
- *   - "local" (기본): LocalStorageProvider (kstost/stock 패턴, dev/local)
- *   - "s3": S3StorageProvider (AWS S3 / Cloudflare R2)
- *
- * facade 패턴: 기존 함수 시그니처 (writeHistory, listHistory 등) 유지.
- * 내부적으로 getStorage() provider에 위임.
- */
+import fs from "node:fs/promises";
+import path from "node:path";
+import type { HistoryRecord } from "@/lib/types";
 
-import type { HistoryRecord } from "./types";
-import { getStorage } from "./storage";
+export const historyDir = path.join(process.cwd(), "history");
 
-export const TELEGRAM_CONFIRM_TTL_SEC = 300; // re-export from telegram.ts (back-compat)
-
-export type { HistoryRecord } from "./types";
-
-/**
- * 디렉토리 보장 (back-compat — 기존 export)
- * @deprecated v1.3: storage provider가 처리. 이 함수는 noop.
- */
-export async function ensureHistoryDir(): Promise<void> {
-  // v1.3: storage provider가 내부 처리. facade 유지만.
-  await getStorage().checkAvailability();
+export async function ensureHistoryDir() {
+  await fs.mkdir(historyDir, { recursive: true });
 }
 
-/**
- * history 디렉토리 (back-compat)
- * @deprecated v1.3: storage provider 내부 경로
- */
-export function getHistoryDir(): string {
-  // v1.3: facade. local provider는 process.cwd()/history
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const path = require("node:path") as typeof import("node:path");
-  return path.join(process.cwd(), "history");
-}
+export async function writeHistory(record: HistoryRecord) {
+  await ensureHistoryDir();
+  const base = `${record.epochSeconds}.json`;
+  let filename = base;
+  let counter = 2;
 
-/**
- * 가용성 확인 (3-state → back-compat + 4-state v1.3)
- */
-export type HistoryAvailability = "available" | "readonly" | "disabled";
-
-export async function checkHistoryAvailability(): Promise<HistoryAvailability> {
-  return (await getStorage().checkAvailability()).availability;
-}
-
-// ─── writeHistory (back-compat facade) ──────────────────────
-export async function writeHistory(record: HistoryRecord): Promise<string> {
-  const result = await getStorage().save(record);
-  if (!result.saved) {
-    throw new Error(
-      `History 저장 실패: ${result.message ?? result.availability}`
-    );
+  while (true) {
+    const target = path.join(historyDir, filename);
+    try {
+      await fs.writeFile(target, `${JSON.stringify(record, null, 2)}\n`, {
+        flag: "wx",
+      });
+      return filename;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST") throw error;
+      filename = `${record.epochSeconds}-${counter}.json`;
+      counter += 1;
+    }
   }
-  return result.filename;
 }
 
-// ─── listHistory (back-compat facade) ──────────────────────
-export async function listHistory(limit = 100): Promise<
-  Array<{ file: string; record: HistoryRecord }>
-> {
-  const result = await getStorage().list({ limit });
-  return result.records;
-}
+export async function listHistory(limit = 100) {
+  await ensureHistoryDir();
+  const files = await fs.readdir(historyDir);
+  const jsonFiles = files
+    .filter((file) => file.endsWith(".json"))
+    .sort((a, b) => a.localeCompare(b))
+    .slice(-limit);
 
-// ─── v1.3: storage-aware variants ──────────────────────
-export async function listHistoryByKind(
-  kind: HistoryRecord["kind"],
-  limit = 100
-): Promise<Array<{ file: string; record: HistoryRecord }>> {
-  const result = await getStorage().list({ kind, limit });
-  return result.records;
-}
+  const records = await Promise.all(
+    jsonFiles.map(async (file) => {
+      const raw = await fs.readFile(path.join(historyDir, file), "utf8");
+      return {
+        file,
+        record: JSON.parse(raw) as HistoryRecord,
+      };
+    }),
+  );
 
-export async function listHistoryBySymbol(
-  symbol: string,
-  limit = 50
-): Promise<Array<{ file: string; record: HistoryRecord }>> {
-  const result = await getStorage().list({ symbol, limit });
-  return result.records;
-}
-
-// ─── back-compat: 테스트용 _resetPendingStore ──────────────
-export function _resetPendingStore(): void {
-  // v1.3: history는 filesystem → 별도 reset 불필요
-  // 호환성 위해 noop 함수로 유지
+  return records;
 }
