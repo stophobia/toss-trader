@@ -61,6 +61,30 @@ OpenCode로 전환한 목적은 **구독료 없이도 동일한 분석 파이프
 npm install
 ```
 
+## (선택) 기본 API 키를 `.env.local`에 저장
+
+매번 키를 입력하기 번거로우면 `.env.local`에 한 번만 저장해 둘 수 있습니다.
+
+```bash
+cp .env.example .env.local
+chmod 600 .env.local
+# .env.local을 편집해 실제 키 입력
+```
+
+저장 후 서버를 재시작하면 UI에 "기본 키 사용 가능" 안내가 뜨고, 입력 필드를 비워 둔 채 [시작]을 누르면 `.env.local`의 키가 자동 사용됩니다.
+
+```
+TOSSINVEST_DEFAULT_API_KEY=...
+TOSSINVEST_DEFAULT_SECRET_KEY=...
+```
+
+**보안 주의**:
+
+- `.env.local`은 `.gitignore`에 의해 git에서 제외됩니다. 절대 커밋하지 마세요.
+- `chmod 600`으로 본인 계정만 읽을 수 있게 하세요.
+- 이 키는 **라이브 주문 권한**이 있습니다. 노출 시 즉시 WTS > 설정 > Open API에서 재발급하세요.
+- 키 값은 절대 클라이언트로 전송되지 않습니다 (길이만 확인).
+
 ## OpenCode 경로 설정
 
 기본값은 macOS Homebrew 설치 위치인 `/opt/homebrew/bin/opencode`입니다.

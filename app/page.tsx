@@ -116,6 +116,7 @@ export default function Home() {
   const [secretKey, setSecretKey] = useState("");
   const [instructions, setInstructions] = useState(defaultInstructions);
   const [intervalSeconds, setIntervalSeconds] = useState(60);
+  const [envAvailable, setEnvAvailable] = useState(false);
   const [session, setSession] = useState<SessionView | null>(null);
   const [recommendation, setRecommendation] =
     useState<AgentRecommendation | null>(null);
@@ -177,6 +178,19 @@ export default function Home() {
       behavior: "smooth",
     });
   }, [history]);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/session/credentials-info", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((body: { available: boolean }) => {
+        if (active) setEnvAvailable(body.available);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const clearTimers = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -297,7 +311,7 @@ export default function Home() {
     clearTimers();
     setError(null);
     setLastOrderResult(null);
-    setStatus("세션 생성 중");
+    setStatus(envAvailable ? "기본 키로 세션 생성 중" : "세션 생성 중");
 
     const response = await fetch("/api/session", {
       method: "POST",
@@ -311,6 +325,7 @@ export default function Home() {
     });
     const body = (await response.json()) as {
       session?: SessionView;
+      keySource?: "env" | "user" | "mixed";
       error?: string;
     };
 
@@ -323,7 +338,9 @@ export default function Home() {
     setSession(body.session);
     setRunning(true);
     runningRef.current = true;
-    setStatus("시작됨");
+    if (body.keySource === "env") setStatus("시작됨 (기본 키)");
+    else if (body.keySource === "mixed") setStatus("시작됨 (혼합 키)");
+    else setStatus("시작됨");
     await runAnalysis(body.session);
   };
 
@@ -403,8 +420,20 @@ export default function Home() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {envAvailable ? (
+                <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  .env.local에 기본 키가 설정되어 있습니다. 입력 필드를 비워 두면 자동으로 사용됩니다.
+                </div>
+              ) : null}
               <div className="space-y-2">
-                <Label htmlFor="apiKey">API Key</Label>
+                <Label htmlFor="apiKey">
+                  API Key
+                  {envAvailable ? (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      (기본 키 사용 가능)
+                    </span>
+                  ) : null}
+                </Label>
                 <div className="relative">
                   <KeyRound className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -414,17 +443,26 @@ export default function Home() {
                     onChange={(event) => setApiKey(event.target.value)}
                     className="pl-9"
                     autoComplete="off"
+                    placeholder={envAvailable ? "비워두면 .env.local 사용" : undefined}
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="secretKey">Secret Key</Label>
+                <Label htmlFor="secretKey">
+                  Secret Key
+                  {envAvailable ? (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      (기본 키 사용 가능)
+                    </span>
+                  ) : null}
+                </Label>
                 <Input
                   id="secretKey"
                   type="password"
                   value={secretKey}
                   onChange={(event) => setSecretKey(event.target.value)}
                   autoComplete="off"
+                  placeholder={envAvailable ? "비워두면 .env.local 사용" : undefined}
                 />
               </div>
               <div className="space-y-2">
@@ -453,7 +491,9 @@ export default function Home() {
                 <Button
                   type="button"
                   onClick={start}
-                  disabled={!apiKey || !secretKey || analyzing}
+                  disabled={
+                    (!apiKey || !secretKey ? !envAvailable : false) || analyzing
+                  }
                   className="flex-1"
                 >
                   {analyzing ? (
