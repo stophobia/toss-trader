@@ -28,11 +28,13 @@ interface StockSearchProps {
   defaultName?: string;
   marketFilter?: Market;
   /**
-   * Optional: when provided, a "🔄 마스터 새로고침" item is enabled in the
-   * options menu. Caller can use the returned `added` count to decide
-   * whether to show a toast.
+   * Optional: when provided, options menu appears with "마스터 새로고침"
+   * entries (one per market). Caller can use the returned `added` count
+   * to decide whether to show a toast.
    */
-  onRefresh?: () => Promise<{ added: number; total: number } | void> | void;
+  onRefresh?: (
+    market: "all" | "KR" | "US",
+  ) => Promise<{ added: number; total: number } | void> | void;
 }
 
 export function StockSearch({
@@ -47,7 +49,7 @@ export function StockSearch({
   const [open, setOpen] = useState<boolean>(false);
   const [highlight, setHighlight] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<"all" | "KR" | "US" | null>(null);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -103,33 +105,36 @@ export function StockSearch({
     [onSelect],
   );
 
-  const handleRefresh = useCallback(async () => {
-    if (!onRefresh || refreshing) return;
-    setRefreshing(true);
-    setRefreshMsg(null);
-    try {
-      const res = await onRefresh();
-      const added = res?.added ?? 0;
-      const total = res?.total ?? 0;
-      setRefreshMsg(
-        added > 0
-          ? `✓ ${added}개 종목 정보 갱신 (캐시 ${total}개)`
-          : `✓ 캐시 ${total}개 — 새로 추가된 종목 없음`,
-      );
-      // Force search results to refresh by re-fetching once
-      // (the cache has changed; server-side searchStocks reads from it).
-      setQuery((q) => q + " ");
-      // remove the trailing space on next tick to retrigger useEffect
-      setTimeout(() => setQuery((q) => q.replace(/ $/, "")), 0);
-    } catch (error) {
-      setRefreshMsg(
-        `✗ ${error instanceof Error ? error.message : "새로고침 실패"}`,
-      );
-    } finally {
-      setRefreshing(false);
-      setTimeout(() => setRefreshMsg(null), 4000);
-    }
-  }, [onRefresh, refreshing]);
+  const handleRefresh = useCallback(
+    async (market: "all" | "KR" | "US") => {
+      if (!onRefresh || refreshing) return;
+      setRefreshing(market);
+      setRefreshMsg(null);
+      try {
+        const res = await onRefresh(market);
+        const added = res?.added ?? 0;
+        const total = res?.total ?? 0;
+        const label =
+          market === "KR" ? "🇰🇷 KR" : market === "US" ? "🇺🇸 US" : "전체";
+        setRefreshMsg(
+          added > 0
+            ? `✓ ${label} ${added}개 종목 정보 갱신 (캐시 ${total}개)`
+            : `✓ 캐시 ${total}개 — 새로 추가된 종목 없음`,
+        );
+        // Force search results to refresh by re-fetching once
+        setQuery((q) => q + " ");
+        setTimeout(() => setQuery((q) => q.replace(/ $/, "")), 0);
+      } catch (error) {
+        setRefreshMsg(
+          `✗ ${error instanceof Error ? error.message : "새로고침 실패"}`,
+        );
+      } finally {
+        setRefreshing(null);
+        setTimeout(() => setRefreshMsg(null), 4000);
+      }
+    },
+    [onRefresh, refreshing],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === "ArrowDown") {
@@ -183,26 +188,56 @@ export function StockSearch({
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuItem
               onSelect={(e) => {
                 e.preventDefault();
-                void handleRefresh();
+                void handleRefresh("all");
               }}
-              disabled={!onRefresh || refreshing}
+              disabled={!onRefresh || refreshing !== null}
               className="cursor-pointer"
             >
-              {refreshing ? (
+              {refreshing === "all" ? (
                 <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
               ) : (
                 <RefreshCw className="mr-2 h-3.5 w-3.5" />
               )}
-              마스터 새로고침
+              마스터 새로고침 (전체)
               {!onRefresh ? (
                 <span className="ml-auto text-[10px] text-muted-foreground">
                   (시작 필요)
                 </span>
               ) : null}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                void handleRefresh("KR");
+              }}
+              disabled={!onRefresh || refreshing !== null}
+              className="cursor-pointer"
+            >
+              {refreshing === "KR" ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-3.5 w-3.5" />
+              )}
+              🇰🇷 KR 마스터 새로고침
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                void handleRefresh("US");
+              }}
+              disabled={!onRefresh || refreshing !== null}
+              className="cursor-pointer"
+            >
+              {refreshing === "US" ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-3.5 w-3.5" />
+              )}
+              🇺🇸 US 마스터 새로고침
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { authenticate, tossFetchAuthed, TossinvestError } from "@/lib/tossinvest";
 import { getAllCachedEntries, upsertStockEntries } from "@/lib/stocks-cache";
-import { POPULAR_STOCKS, getPopularSymbols } from "@/lib/popular-stocks";
+import {
+  POPULAR_STOCKS,
+  getPopularKrSymbols,
+  getPopularSymbols,
+  getPopularUsSymbols,
+} from "@/lib/popular-stocks";
 import { getSession } from "@/lib/session-store";
 import type { Market } from "@/lib/stocks";
 
@@ -29,11 +34,17 @@ export const maxDuration = 60;
  * 점진적으로 풍부해진다.
  */
 export async function POST(request: Request) {
+  const url = new URL(request.url);
   const body = (await request.json().catch(() => ({}))) as {
     sessionId?: string;
     /** Optional: 사용자가 직접 입력한 symbol도 함께 fetch. e.g. 상장 직후 종목. */
     extraSymbols?: string[];
   };
+  // URL query: ?market=US | KR | all (기본 all)
+  const marketParam = url.searchParams.get("market");
+  const marketFilter: "KR" | "US" | "all" =
+    marketParam === "US" || marketParam === "KR" ? marketParam : "all";
+
   const session = getSession(body.sessionId);
 
   if (!session) {
@@ -47,13 +58,22 @@ export async function POST(request: Request) {
     // 1) 인증
     const { account } = await authenticate(session.apiKey, session.secretKey);
 
-    // 2) batch fetch — 인기 종목 + 사용자 추가 종목 (dedup, 200개 cap)
-    const allSymbols = Array.from(
-      new Set([...getPopularSymbols(), ...(body.extraSymbols ?? [])]),
-    ).slice(0, 200);
+    // 2) batch fetch — 마켓 필터 적용
+    const baseSymbols =
+      marketFilter === "US"
+        ? getPopularUsSymbols()
+        : marketFilter === "KR"
+          ? getPopularKrSymbols()
+          : getPopularSymbols();
 
-    const url = `/api/v1/stocks?symbols=${allSymbols.map(encodeURIComponent).join(",")}`;
-    const result = await tossFetchAuthed<{ result: StockInfoDto[] }>(url, {
+    // 3) batch fetch — 인기 종목 + 사용자 추가 종목 (dedup, 100개 cap)
+    //    Toss API는 100개 이상 batch에서 500 반환하는 케이스가 있어 100 cap.
+    const allSymbols = Array.from(
+      new Set([...baseSymbols, ...(body.extraSymbols ?? [])]),
+    ).slice(0, 100);
+
+    const stocksPath = `/api/v1/stocks?symbols=${allSymbols.map(encodeURIComponent).join(",")}`;
+    const result = await tossFetchAuthed<{ result: StockInfoDto[] }>(stocksPath, {
       apiKey: session.apiKey,
       secretKey: session.secretKey,
       accountSeq: account.accountSeq,
@@ -105,6 +125,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       added: entries.length,
       total,
+      market: marketFilter,
       missing,
       fetchedAt: new Date().toISOString(),
     });

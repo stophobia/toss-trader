@@ -375,6 +375,126 @@ const POPULAR_US: PopularStock[] = [
   { symbol: "ASML", name: "ASML Holding", market: "US" },
   { symbol: "TSM", name: "Taiwan Semiconductor", market: "US" },
   { symbol: "SAP", name: "SAP", market: "US" },
+  // 대형주 추가 (S&P 500 시총 상위권)
+  { symbol: "LLY", name: "Eli Lilly", market: "US" }, // dup-guard OK
+  { symbol: "WDAY", name: "Workday", market: "US" },
+  { symbol: "PANW", name: "Palo Alto Networks", market: "US" },
+  { symbol: "CRWD", name: "CrowdStrike", market: "US" },
+  { symbol: "FTNT", name: "Fortinet", market: "US" },
+  { symbol: "NET", name: "Cloudflare", market: "US" },
+  { symbol: "DDOG", name: "Datadog", market: "US" },
+  { symbol: "TEAM", name: "Atlassian", market: "US" },
+  { symbol: "ZS", name: "Zscaler", market: "US" },
+  { symbol: "SNOW", name: "Snowflake", market: "US" },
+  { symbol: "MDB", name: "MongoDB", market: "US" },
+  { symbol: "NET", name: "Cloudflare", market: "US" }, // dup
+  { symbol: "OKTA", name: "Okta", market: "US" },
+  { symbol: "TWLO", name: "Twilio", market: "US" },
+  { symbol: "DOCU", name: "DocuSign", market: "US" },
+  { symbol: "ZM", name: "Zoom", market: "US" },
+  { symbol: "SPOT", name: "Spotify", market: "US" },
+  { symbol: "RBLX", name: "Roblox", market: "US" },
+  { symbol: "DASH", name: "DoorDash", market: "US" },
+  { symbol: "ETSY", name: "Etsy", market: "US" },
+  { symbol: "EBAY", name: "eBay", market: "US" },
+  { symbol: "CHWY", name: "Chewy", market: "US" },
+  { symbol: "W", name: "Wayfair", market: "US" },
+  { symbol: "MARA", name: "Marathon Digital", market: "US" },
+  { symbol: "RIOT", name: "Riot Platforms", market: "US" },
+  { symbol: "HUT", name: "Hut 8 Mining", market: "US" },
+  // 헬스케어 추가
+  { symbol: "ISRG", name: "Intuitive Surgical", market: "US" },
+  { symbol: "REGN", name: "Regeneron", market: "US" },
+  { symbol: "VRTX", name: "Vertex Pharmaceuticals", market: "US" },
+  { symbol: "BIIB", name: "Biogen", market: "US" },
+  { symbol: "MRNA", name: "Moderna", market: "US" },
+  { symbol: "BNTX", name: "BioNTech", market: "US" },
+  { symbol: "ILMN", name: "Illumina", market: "US" },
+  { symbol: "DXCM", name: "DexCom", market: "US" },
+  { symbol: "INCY", name: "Incyte", market: "US" },
+  { symbol: "BIIB", name: "Biogen", market: "US" }, // dup
+  { symbol: "RARE", name: "Ultragenyx", market: "US" },
+  { symbol: "FOLD", name: "Amicus Therapeutics", market: "US" },
+  { symbol: "IONS", name: "Ionis Pharmaceuticals", market: "US" },
+  { symbol: "BMRN", name: "BioMarin", market: "US" },
+  // 산업/방산
+  { symbol: "WM", name: "Waste Management", market: "US" },
+  { symbol: "RSG", name: "Republic Services", market: "US" },
+  { symbol: "EMR", name: "Emerson Electric", market: "US" },
+  { symbol: "ITW", name: "Illinois Tool Works", market: "US" },
+  { symbol: "ETN", name: "Eaton", market: "US" },
+  { symbol: "PH", name: "Parker Hannifin", market: "US" },
+  { symbol: "PCAR", name: "PACCAR", market: "US" },
+  { symbol: "URI", name: "United Rentals", market: "US" },
+  { symbol: "FAST", name: "Fastenal", market: "US" },
+  // 금융 추가
+  { symbol: "USB", name: "US Bancorp", market: "US" },
+  { symbol: "PNC", name: "PNC Financial", market: "US" },
+  { symbol: "TFC", name: "Truist Financial", market: "US" },
+  { symbol: "COF", name: "Capital One", market: "US" },
+  { symbol: "CFG", name: "Citizens Financial", market: "US" },
+  { symbol: "KEY", name: "KeyCorp", market: "US" },
+  { symbol: "RF", name: "Regions Financial", market: "US" },
+  { symbol: "HBAN", name: "Huntington Bancshares", market: "US" },
+  // 에너지 추가
+  { symbol: "OXY", name: "Occidental Petroleum", market: "US" },
+  { symbol: "PSX", name: "Phillips 66", market: "US" },
+  { symbol: "VLO", name: "Valero Energy", market: "US" },
+  { symbol: "MPC", name: "Marathon Petroleum", market: "US" },
+  { symbol: "KMI", name: "Kinder Morgan", market: "US" },
+  { symbol: "OKE", name: "ONEOK", market: "US" },
+  { symbol: "WMB", name: "Williams Companies", market: "US" },
+  // 부동산/리츠
+  { symbol: "AMT", name: "American Tower", market: "US" },
+  { symbol: "EQIX", name: "Equinix", market: "US" },
+  { symbol: "PSA", name: "Public Storage", market: "US" },
+  { symbol: "WELL", name: "Welltower", market: "US" },
+  { symbol: "DLR", name: "Digital Realty", market: "US" },
+  { symbol: "VICI", name: "VICI Properties", market: "US" },
+  { symbol: "PLD", name: "Prologis", market: "US" },
+  // 유틸리티
+  { symbol: "NEE", name: "NextEra Energy", market: "US" },
+  { symbol: "SO", name: "Southern Company", market: "US" },
+  { symbol: "DUK", name: "Duke Energy", market: "US" },
+  { symbol: "AEP", name: "American Electric Power", market: "US" },
+  { symbol: "EXC", name: "Exelon", market: "US" },
+  { symbol: "SRE", name: "Sempra", market: "US" },
+  { symbol: "XEL", name: "Xcel Energy", market: "US" },
+  // 소재/화학
+  { symbol: "LIN", name: "Linde", market: "US" },
+  { symbol: "APD", name: "Air Products and Chemicals", market: "US" },
+  { symbol: "ECL", name: "Ecolab", market: "US" },
+  { symbol: "FCX", name: "Freeport-McMoRan", market: "US" },
+  { symbol: "NEM", name: "Newmont", market: "US" },
+  // 게임/엔터
+  { symbol: "EA", name: "Electronic Arts", market: "US" },
+  { symbol: "TTWO", name: "Take-Two Interactive", market: "US" },
+  { symbol: "ATVI", name: "Activision Blizzard", market: "US" },
+  { symbol: "WBD", name: "Warner Bros Discovery", market: "US" },
+  { symbol: "PARA", name: "Paramount Global", market: "US" },
+  // 보험
+  { symbol: "BRK.A", name: "Berkshire Hathaway Class A", market: "US" },
+  { symbol: "PGR", name: "Progressive", market: "US" },
+  { symbol: "ALL", name: "Allstate", market: "US" },
+  { symbol: "TRV", name: "Travelers", market: "US" },
+  { symbol: "MET", name: "MetLife", market: "US" },
+  { symbol: "PRU", name: "Prudential Financial", market: "US" },
+  { symbol: "AFL", name: "Aflac", market: "US" },
+  // 항공/운송
+  { symbol: "DAL", name: "Delta Air Lines", market: "US" },
+  { symbol: "AAL", name: "American Airlines", market: "US" },
+  { symbol: "UAL", name: "United Airlines", market: "US" },
+  { symbol: "LUV", name: "Southwest Airlines", market: "US" },
+  { symbol: "FDX", name: "FedEx", market: "US" },
+  { symbol: "CSX", name: "CSX Corporation", market: "US" },
+  { symbol: "UNP", name: "Union Pacific", market: "US" },
+  { symbol: "NSC", name: "Norfolk Southern", market: "US" },
+  { symbol: "CP", name: "Canadian Pacific Kansas City", market: "US" },
+  // 배당 귀족
+  { symbol: "MO", name: "Altria", market: "US" },
+  { symbol: "PM", name: "Philip Morris International", market: "US" },
+  { symbol: "BTI", name: "British American Tobacco", market: "US" },
+  { symbol: "TGT", name: "Target", market: "US" }, // dup
 ];
 
 export const POPULAR_STOCKS: PopularStock[] = [
@@ -388,6 +508,32 @@ export function getPopularSymbols(): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const s of POPULAR_STOCKS) {
+    if (!seen.has(s.symbol)) {
+      seen.add(s.symbol);
+      out.push(s.symbol);
+    }
+  }
+  return out;
+}
+
+/** Just the US symbols (S&P 500 + NASDAQ 대형주) — for US-only refresh. */
+export function getPopularUsSymbols(): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of POPULAR_US) {
+    if (!seen.has(s.symbol)) {
+      seen.add(s.symbol);
+      out.push(s.symbol);
+    }
+  }
+  return out;
+}
+
+/** Just the KR (주식 + ETF) symbols. */
+export function getPopularKrSymbols(): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of [...POPULAR_KR, ...POPULAR_KR_ETF]) {
     if (!seen.has(s.symbol)) {
       seen.add(s.symbol);
       out.push(s.symbol);

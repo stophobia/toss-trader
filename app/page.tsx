@@ -479,19 +479,25 @@ export default function Home() {
                   }}
                   onRefresh={
                     session
-                      ? async () => {
-                          const res = await fetch("/api/stocks/refresh", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ sessionId: session.id }),
-                          });
+                      ? async (market: "all" | "KR" | "US") => {
+                          const res = await fetch(
+                            `/api/stocks/refresh${market === "all" ? "" : `?market=${market}`}`,
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ sessionId: session.id }),
+                            },
+                          );
                           if (!res.ok) {
                             const body = (await res.json().catch(() => ({}))) as {
                               error?: string;
                             };
                             throw new Error(body.error || `HTTP ${res.status}`);
                           }
-                          return (await res.json()) as { added: number; total: number };
+                          return (await res.json()) as {
+                            added: number;
+                            total: number;
+                          };
                         }
                       : undefined
                   }
