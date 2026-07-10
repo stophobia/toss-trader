@@ -13,6 +13,7 @@ import { Portfolio } from "@/components/Portfolio";
 import { OrderButton } from "@/components/OrderButton";
 import { History } from "@/components/History";
 import { ConfirmModeToggle } from "@/components/ConfirmModeToggle";
+import { CandlePanel } from "@/components/CandlePanel";
 import type { TelegramConfirmMode } from "@/lib/settings";
 
 type Tab = "dashboard" | "history";
@@ -99,6 +100,11 @@ export default function Home() {
                 confirmMode={confirmMode}
               />
               <ConfirmModeToggle value={confirmMode} onChange={setConfirmMode} />
+            </div>
+
+            {/* v1.4: 캔들 차트 (선택 종목) */}
+            <div className="mt-4">
+              <CandlePanel symbol={selectedSymbol} symbolName={selectedSymbolName} />
             </div>
           </section>
         )}
