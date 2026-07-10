@@ -1,4 +1,5 @@
 import { authenticate, tossFetchAuthed, TossinvestError } from "@/lib/tossinvest";
+import { upsertStockEntries } from "@/lib/stocks-cache";
 import type { SessionState } from "@/lib/types";
 
 /**
@@ -198,6 +199,61 @@ export async function collectMarketContext(
         message: reason.error.message,
       });
     }
+  }
+
+  // Best-effort: feed stockInfo response into the dynamic stock cache so the
+  // search dropdown gets richer over time. Failure here must not affect the
+  // analysis outcome.
+  try {
+    const stockInfoRaw = ctx.stockInfo;
+    const list = Array.isArray(stockInfoRaw)
+      ? stockInfoRaw
+      : stockInfoRaw &&
+          typeof stockInfoRaw === "object" &&
+          Array.isArray((stockInfoRaw as { result?: unknown }).result)
+        ? (stockInfoRaw as { result: unknown[] }).result
+        : [];
+    if (list.length > 0) {
+      const entries: Array<{
+        symbol: string;
+        name: string;
+        englishName?: string;
+        market: "KR" | "US";
+        currency?: string;
+      }> = [];
+      for (const item of list) {
+        if (!item || typeof item !== "object") continue;
+        const e = item as {
+          symbol?: string;
+          name?: string;
+          englishName?: string;
+          market?: string;
+          currency?: string;
+        };
+        if (!e.symbol || !e.name) continue;
+        const raw = (e.market || "").toUpperCase();
+        const fromDto: "KR" | "US" =
+          raw === "US" || raw.includes("NASDAQ") || raw.includes("NYSE") || raw.includes("AMEX")
+            ? "US"
+            : "KR";
+        // If Toss API didn't tell us US explicitly, trust the caller's market
+        // (which we received from the session). This handles "KRX" / "KOSDAQ"
+        // strings that wouldn't otherwise flip to US.
+        const m: "KR" | "US" = fromDto === "US" ? "US" : market;
+        entries.push({
+          symbol: e.symbol,
+          name: e.name,
+          englishName: e.englishName,
+          market: m,
+          currency: e.currency,
+        });
+      }
+      if (entries.length > 0) {
+        await upsertStockEntries(entries);
+      }
+    }
+  } catch {
+    // ignore — cache update is best-effort
   }
 
   return ctx;

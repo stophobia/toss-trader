@@ -1,98 +1,109 @@
 /**
- * lib/stocks.ts — toss-trader 정적 종목 마스터 (v1.1 → 2026-07-10 갱신)
+ * lib/stocks.ts — toss-trader 종목 마스터 (v2 — 동적 캐시)
  *
- * 토스 Open API는 종목 검색 endpoint 없음 (symbol 코드 정확 조회만).
- * → KOSPI 시가총액 상위 + KR/US 대형주 50개를 정적으로 보관.
- * → 클라이언트 사이드 fuzzy 검색 (서버 호출 0).
+ * 토스 Open API는 종목 검색 endpoint 없음. 대안:
+ *   1. lib/stocks-seed.json (빌드 시 KRX 2,872종목 + US 57종목) — 정적 시드
+ *   2. lib/stocks-cache.ts (런타임 캐시) — 사용자가 분석한 종목의 stockInfo 누적
  *
- * 업데이트 시: 새 종목 추가만 하면 됨 (마이그레이션 불필요).
+ * 두 소스를 합쳐서 메모리에서 검색. 캐시는 30일 TTL.
+ *
+ * 업데이트:
+ *   - 시드 갱신: lib/stocks-seed.json 직접 편집 후 배포
+ *   - 캐시 갱신: 사용자가 분석 시작 시 자동 (lib/market-context.ts에서 upsert)
  */
+
+import { getAllCachedEntries, type StockEntry } from "@/lib/stocks-cache";
 
 export type Market = "KR" | "US";
 
 export interface StockMaster {
-  /** 토스 symbol (KR 6자리 숫자 / US 영문 티커) */
   symbol: string;
-  /** 종목명 (한글 또는 영문) */
   name: string;
   market: Market;
 }
 
-// KOSPI 시가총액 상위 + 대형주 30개 (2026-07-09 기준)
-export const STOCK_MASTER: StockMaster[] = [
-  // ─── KOSPI 시가총액 상위 ───
-  { symbol: "005930", name: "삼성전자", market: "KR" },
-  { symbol: "000660", name: "SK하이닉스", market: "KR" },
-  { symbol: "035420", name: "NAVER", market: "KR" },
-  { symbol: "005490", name: "POSCO홀딩스", market: "KR" },
-  { symbol: "051910", name: "LG화학", market: "KR" },
-  { symbol: "006400", name: "삼성SDI", market: "KR" },
-  { symbol: "028260", name: "삼성물산", market: "KR" },
-  { symbol: "012330", name: "현대모비스", market: "KR" },
-  { symbol: "005380", name: "현대차", market: "KR" },
-  { symbol: "066570", name: "LG전자", market: "KR" },
-  { symbol: "003550", name: "LG", market: "KR" },
-  { symbol: "034730", name: "SK", market: "KR" },
-  { symbol: "015760", name: "한국전력", market: "KR" },
-  { symbol: "017670", name: "SK텔레콤", market: "KR" },
-  { symbol: "030200", name: "KT", market: "KR" },
-  { symbol: "032830", name: "삼성생명", market: "KR" },
-  { symbol: "086790", name: "하나금융지주", market: "KR" },
-  { symbol: "105560", name: "KB금융", market: "KR" },
-  { symbol: "055550", name: "신한지주", market: "KR" },
-  { symbol: "316140", name: "우리금융지주", market: "KR" },
-  { symbol: "024110", name: "기업은행", market: "KR" },
-  { symbol: "000810", name: "삼성화재", market: "KR" },
-  { symbol: "002790", name: "아모레퍼시픽", market: "KR" },
-  { symbol: "090430", name: "아모레G", market: "KR" },
-  { symbol: "051900", name: "LG생활건강", market: "KR" },
-  { symbol: "033780", name: "KT&G", market: "KR" },
-  { symbol: "010130", name: "고려아연", market: "KR" },
-  { symbol: "011170", name: "롯데케미칼", market: "KR" },
-  { symbol: "009150", name: "삼성전기", market: "KR" },
-  { symbol: "035720", name: "카카오", market: "KR" },
-  { symbol: "000270", name: "기아", market: "KR" },
+// 시드 import — Next.js는 JSON import를 정적으로 처리
+// (2,929 종목, ~190KB, 빌드 타임에 inline)
+import seedData from "./stocks-seed.json";
 
-  // ─── US 대형주 (시총 상위 + 인기) ───
-  { symbol: "AAPL", name: "Apple", market: "US" },
-  { symbol: "MSFT", name: "Microsoft", market: "US" },
-  { symbol: "NVDA", name: "NVIDIA", market: "US" },
-  { symbol: "GOOGL", name: "Alphabet (Class A)", market: "US" },
-  { symbol: "GOOG", name: "Alphabet (Class C)", market: "US" },
-  { symbol: "AMZN", name: "Amazon", market: "US" },
-  { symbol: "META", name: "Meta Platforms", market: "US" },
-  { symbol: "TSLA", name: "Tesla", market: "US" },
-  { symbol: "BRK.B", name: "Berkshire Hathaway", market: "US" },
-  { symbol: "JPM", name: "JPMorgan Chase", market: "US" },
-  { symbol: "V", name: "Visa", market: "US" },
-  { symbol: "JNJ", name: "Johnson & Johnson", market: "US" },
-  { symbol: "WMT", name: "Walmart", market: "US" },
-  { symbol: "PG", name: "Procter & Gamble", market: "US" },
-  { symbol: "MA", name: "Mastercard", market: "US" },
-  { symbol: "HD", name: "Home Depot", market: "US" },
-  { symbol: "CVX", name: "Chevron", market: "US" },
-  { symbol: "DIS", name: "Walt Disney", market: "US" },
-  { symbol: "BAC", name: "Bank of America", market: "US" },
-  { symbol: "NFLX", name: "Netflix", market: "US" },
-];
+const SEED: StockMaster[] = (seedData as StockEntry[]).map((e) => ({
+  symbol: e.symbol,
+  name: e.name,
+  market: e.market,
+}));
+
+// ─── 캐시 인덱스 (lazy build) ─────────────────────────────────
+let cacheIndex: Map<string, StockMaster> | null = null;
+let cacheBuildPromise: Promise<Map<string, StockMaster>> | null = null;
+
+async function buildCacheIndex(): Promise<Map<string, StockMaster>> {
+  const index = new Map<string, StockMaster>();
+  // 1) 시드를 먼저 채움
+  for (const s of SEED) {
+    index.set(s.symbol, s);
+  }
+  // 2) 런타임 캐시로 덮어쓰기 (이름/영문명이 더 정확할 수 있음)
+  try {
+    const cached = await getAllCachedEntries();
+    for (const e of cached) {
+      index.set(e.symbol, {
+        symbol: e.symbol,
+        name: e.name,
+        market: e.market,
+      });
+    }
+  } catch {
+    // 캐시 로드 실패는 무시 (시드만으로 동작)
+  }
+  return index;
+}
+
+/**
+ * 검색용 통합 인덱스. 시드 + 런타임 캐시. 한 번 빌드 후 메모리.
+ */
+async function getMasterIndex(): Promise<Map<string, StockMaster>> {
+  if (cacheIndex) return cacheIndex;
+  if (!cacheBuildPromise) {
+    cacheBuildPromise = buildCacheIndex().then((idx) => {
+      cacheIndex = idx;
+      return idx;
+    });
+  }
+  return cacheBuildPromise;
+}
+
+/**
+ * 동기적 버전. 시드만으로 빠르게 (서버 초기 부팅 시 안전).
+ * 런타임 캐시는 async 버전을 통해 lazy merge.
+ */
+export function getSeedMaster(): StockMaster[] {
+  return SEED;
+}
+
+export function findBySymbol(symbol: string): StockMaster | undefined {
+  // sync 버전은 시드만 (캐시 무시). 정확한 검색은 async searchStocks 사용.
+  return SEED.find((s) => s.symbol === symbol);
+}
 
 // ─── 검색 함수 (fuzzy match) ──────────────────────────────────
 /**
- * 종목 검색 (이름 or symbol)
- * - 입력 정규화: 공백 제거, 소문자, NFC
- * - symbol 정확 매치 > 이름 시작 매치 > 이름 부분 매치
- * - limit 기본 10
- * - marketFilter로 KR/US만 보이게 제한 가능
+ * 비동기: 시드 + 런타임 캐시 통합 검색. UI에서 호출.
+ * 4단계 매칭:
+ *   1) symbol 정확
+ *   2) symbol 부분 (티커 prefix)
+ *   3) 이름 prefix
+ *   4) 이름 contains
  */
-export function searchStocks(
+export async function searchStocks(
   query: string,
   limit = 10,
   marketFilter?: Market,
-): StockMaster[] {
+): Promise<StockMaster[]> {
   const q = normalize(query);
+  const index = await getMasterIndex();
   const candidates = marketFilter
-    ? STOCK_MASTER.filter((s) => s.market === marketFilter)
-    : STOCK_MASTER;
+    ? Array.from(index.values()).filter((s) => s.market === marketFilter)
+    : Array.from(index.values());
 
   if (!q) return candidates.slice(0, limit);
 
@@ -100,17 +111,17 @@ export function searchStocks(
   const exactSymbol = candidates.filter((s) => s.symbol === q);
   if (exactSymbol.length > 0) return exactSymbol;
 
-  // 2) symbol 부분 매치 (티커 prefix 검색, 예: "NVD" → NVDA)
+  // 2) symbol 부분 매치
   const symbolContains = candidates.filter((s) =>
     s.symbol.toLowerCase().includes(q),
   );
   if (symbolContains.length > 0) return symbolContains.slice(0, limit);
 
-  // 3) 이름 시작 매치 (prefix)
+  // 3) 이름 prefix
   const prefixMatch = candidates.filter((s) => normalize(s.name).startsWith(q));
   if (prefixMatch.length > 0) return prefixMatch.slice(0, limit);
 
-  // 4) 이름 부분 매치 (contains)
+  // 4) 이름 contains
   const containsMatch = candidates.filter((s) => normalize(s.name).includes(q));
   return containsMatch.slice(0, limit);
 }
@@ -119,7 +130,8 @@ function normalize(s: string): string {
   return s.trim().toLowerCase().normalize("NFC");
 }
 
-// ─── symbol로 찾기 (보너스) ──────────────────────────────────
-export function findBySymbol(symbol: string): StockMaster | undefined {
-  return STOCK_MASTER.find((s) => s.symbol === symbol);
+// ─── 캐시 invalidate (테스트/개발용) ─────────────────────────
+export function _invalidateCache() {
+  cacheIndex = null;
+  cacheBuildPromise = null;
 }

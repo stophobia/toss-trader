@@ -42,3 +42,6 @@ coverage/
 # opencode session cache
 .omo/
 .codegraph/
+
+# stocks dynamic cache (regenerable from Toss API)
+stocks-cache.json
