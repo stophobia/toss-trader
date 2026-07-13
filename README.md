@@ -2,6 +2,8 @@
 
 > 토스증권 Open API와 로컬 LLM CLI를 이용해 계좌·시장 상태를 주기적으로 분석하고,
 > `BUY` / `SELL` / `HOLD` 판단을 화면에 표시하는 Next.js 애플리케이션입니다.
+> 국내 ETF 867종목 + 미국 ETF 100종목(시드 200종목) 자동완성 검색과 마스터 새로고침,
+> 12개 endpoint에서 모은 실시간 시장 컨텍스트 기반 LLM 분석을 지원합니다.
 
 이 프로젝트는 [kstost/stock](https://github.com/kstost/stock)을 기반으로 재구축한 결과물입니다.
 원작자가 설계한 분석 파이프라인(로컬 LLM exec → JSON 스키마 응답 → UI 표시)을 그대로 따르되,
@@ -120,6 +122,8 @@ npm run dev
 
 ## 사용 방법
 
+### 분석 실행
+
 1. 브라우저에서 `http://localhost:3000`을 엽니다.
 2. 토스증권 `API Key`와 `Secret Key`를 입력합니다.
 3. **분석 간격 (초)** 을 입력합니다. 최소값 30초, 기본값 60초.
@@ -129,6 +133,35 @@ npm run dev
 7. 결과가 화면에 표시됩니다.
 8. 필요하면 수량, 지정가, 통화를 수정합니다.
 9. 실제 주문을 원할 때만 `BUY` 또는 `SELL` 버튼을 누릅니다.
+
+### 종목 검색 (자동완성)
+
+상단 입력창에서 종목 심볼 또는 회사명으로 검색:
+
+- **정확 매치 우선** → `VOO` 입력 시 `Vanguard S&P 500 ETF`가 1순위
+- **starts-with 매치** → `QQQ` 검색 시 `QQQA/QQQE/QQQJ/QQQM/...` 우선, 그 다음 정확 매치
+- **회사명 부분 매치** → `Vanguard` 검색 시 `BND/BNDP/BNDW/VBCA...` 등 채권 ETF 일괄
+- **한/영 혼합** 지원 — `KODEX`, `TIGER`, `Vanguard`, `iShares`, `SPDR` 모두 동작
+
+검색 대상은 `lib/popular-stocks.ts`의 인기 종목 + `lib/stocks-seed.json`의 시드입니다:
+
+| 마스터 | 종목 수 | 출처 |
+|---|---|---|
+| KR 주식 | 50+ | KRX 상위 종목 |
+| KR ETF | 867 | KODEX, TIGER, ACE, SOL 등 |
+| US 주식 | 21 | NASDAQ/NYSE 메이저 |
+| US ETF | 100 (시드 200) | Vanguard, iShares, SPDR, Schwab, JPMorgan, ProShares |
+
+### 마스터 새로고침
+
+헤더 옵션 메뉴(⋮) → **마스터 새로고침** 클릭:
+
+- 토스 Open API의 `popular-stocks.ts` 하드코딩 리스트 ~200종목을 batch fetch (200개 cap)
+- 응답의 `market` 필드를 KR/US로 정규화 (KRX/NASDAQ/NYSE → KR/US)
+- `stocks-cache.json`에 동적 캐시 갱신 + `stocks-seed.json` 시드에 자동 upsert
+- 측정값: 200개 batch 1회 ≈ 0.6초
+
+검색 로직은 그대로 — 시드/리스트에 통합해서 동일 흐름으로 검색·갱신되는 구조입니다.
 
 ## 분석 결과 형식
 
@@ -178,10 +211,12 @@ OpenCode의 최종 응답은 JSON Schema와 동일한 구조로 검증합니다
 
 기록 종류:
 
-- `analysis`: OpenCode 분석 결과
+- `analysis`: OpenCode 분석 결과 + `MarketContext` (12 endpoint snapshot)
 - `order`: 사용자가 누른 주문 요청 결과
 
 UI 오른쪽 `History Log`에서 항목을 클릭하면 모달로 상세 내용을 볼 수 있습니다.
+
+마스터 새로고침(`POST /api/stocks/refresh`)으로 추가된 종목 정보도 같은 `history/`에 기록됩니다.
 
 ## 주요 파일 구조
 
@@ -191,24 +226,69 @@ app/                                   # Next.js App Router
   layout.tsx
   api/
     session/route.ts                   # API Key/Secret 세션 생성
-    agent/run/route.ts                 # OpenCode 분석 실행
+    agent/run/route.ts                 # OpenCode 분석 실행 (with Market Context)
     order/route.ts                     # Toss 주문 요청
     history/route.ts                   # history 목록 조회
-components/                            # shadcn/ui + 커스텀 컴포넌트
+    stocks/
+      search/route.ts                  # 종목 자동완성 (4단계 fuzzy 매칭)
+      refresh/route.ts                 # 마스터 새로고침 (batch fetch + cache upsert)
+    session/
+      credentials-info/route.ts        # .env.local 키 사용 가능 여부 확인
+components/
+  StockSearch.tsx                      # 종목 자동완성 UI (KR/US 통합)
+  ui/                                  # shadcn/ui (button, card, input, dropdown ...)
 lib/
   agents/
     shared.ts                          # system prompt + 검증 (agent 공용)
     opencode/runner.ts                 # opencode run 실행 래퍼
     index.ts                           # AGENT_KIND 라우터
   agent.ts                             # 호환 re-export (구 import 경로 유지)
-  tossinvest.ts                        # 토스증권 Open API 클라이언트
+  tossinvest.ts                        # 토스증권 Open API 클라이언트 + 토큰 캐싱
+  market-context.ts                    # 12 endpoint 병렬 수집 + Promise.allSettled
   history.ts                           # history 파일 저장/조회
   session-store.ts                     # 서버 메모리 세션 저장
+  stocks.ts                            # 4단계 fuzzy 매칭 (정확 > starts-with > contains > name)
+  stocks-cache.ts                      # 동적 캐시 (런타임 종목 추가)
+  stocks-seed.json                     # 정적 시드 (KR 3,739 / US 1,499)
+  popular-stocks.ts                    # 인기 종목 (KR/US 주식 + ETF 통합 리스트)
   types.ts                             # 공유 타입
   utils.ts                             # 포맷/유틸
 schemas/investment-agent-output.schema.json
 tossinvest_apidocs.json                # 토스증권 OpenAPI 문서
 prompt.txt                             # 원작자 system prompt 원본 (참고용)
+```
+
+### 종목 검색 구조
+
+```
+사용자 입력 (예: "VOO")
+  ↓
+GET /api/stocks/search?q=VOO&limit=5
+  ↓
+lib/stocks.ts: 4단계 fuzzy 매칭
+  1) symbol 정확 매치 (VOO → Vanguard S&P 500 ETF) ← 1순위
+  2) symbol starts-with (VOO*, VOOX...) ← 2순위
+  3) symbol contains (VOO*) ← 3순위
+  4) name contains (VOO 검색어가 이름에 포함) ← 4순위
+  ↓
+StockSearch.tsx: 결과 표시 (KR/US 마커 포함)
+```
+
+### 시장 컨텍스트 흐름
+
+```
+POST /api/agent/run (사용자가 분석 시작)
+  ↓
+collectMarketContext(session, symbol, market)
+  ├─ 토큰 캐싱: expires_in 동안 in-process Map 캐시
+  ├─ 12 endpoint Promise.allSettled 병렬 fetch
+  │   (prices, orderbook, trades, candles, stockInfo, warnings,
+  │    marketCalendarKR, exchangeRate, holdings, buyingPower, sellableQuantity)
+  └─ 일부 실패해도 수집된 데이터로 진행 (graceful)
+  ↓
+renderContextBlock(context) → system prompt 끝에 JSON 첨부
+  ↓
+OpenCode run → JSON schema 응답 → history/*.json 저장
 ```
 
 ## OpenCode 실행 방식
@@ -275,6 +355,15 @@ $OPENCODE_BIN run --format json --auto \
   'Return exactly: {"ok":true}'
 ```
 
+종목 검색 빠른 검증:
+
+```bash
+# dev 서버 실행 후
+curl -s "http://localhost:3000/api/stocks/search?q=VOO&limit=3" | jq .
+curl -s "http://localhost:3000/api/stocks/search?q=Vanguard&limit=3" | jq .
+curl -s "http://localhost:3000/api/stocks/search?q=QQQ&limit=5" | jq .
+```
+
 ## 서버 중지
 
 개발 서버를 터미널에서 실행 중이라면 `Ctrl+C` 로 중지합니다.
@@ -308,6 +397,29 @@ kill <PID>
 - API Key 와 Secret Key 는 서버 메모리에만 저장하며 파일에 저장하지 않습니다.
 - 채팅, 로그, 화면 공유 등에 Secret Key 가 노출되면 즉시 재발급하는 것을 권장합니다.
 - OpenCode 분석 프롬프트에는 실제 주문 생성·정정·취소 endpoint 호출 금지 지침이 포함되어 있습니다.
+- **자동매매 기능은 현재 계획 단계입니다** (구현 전). 자세한 내용은 아래 로드맵 섹션을 참조하세요.
+
+## 자동매매 로드맵 (계획 단계, 미구현)
+
+자세한 계획서: [`.hermes/plans/2026-07-13_075854-full-autotrading.md`](./.hermes/plans/2026-07-13_075854-full-autotrading.md)
+
+**목표**: LLM이 판단하면 서버가 즉시 실제 주문을 실행하는 풀 자동 시스템.
+
+**안전장치 4중** (2026-07-13 사용자 결정, 일일 한도/연속 손실 정지는 의도적으로 비활성):
+
+| # | 안전장치 | 강제 |
+|---|---|---|
+| 1 | 킬 스위치 (`AUTO_TRADING_ENABLED=false` 즉시 무시) | ✅ |
+| 2 | 세션 스코프 화이트리스트 (targetSymbol 외 종목 거부) | ✅ |
+| 3 | 장 운영시간 + 휴장일 (KRX/US KST) | ✅ |
+| 4 | LLM 신뢰도 게이트 (confidence < 0.6 → HOLD 격하) | ✅ |
+
+**Phase 구성**: 8단계 (vitest 복원 → 결정 인프라 → Audit → 장시간 → 신뢰도 → 스케줄러 → 4중 통합 → 알림+UI → 검증).
+
+**⚠️ 활성화 전 확인사항**:
+- `.env.local`의 `AUTO_TRADING_ENABLED=false`가 기본값 (명시적으로 `true` 설정 시에만 켜짐)
+- Paper 모드(`TOSS_TRADING_MODE=paper`)로 최소 1주일 가동 후 live 전환 권장
+- 자동매매는 본인 책임 — 본 코드의 모든 안전장치를 통과해도 실제 손실 가능
 
 ## 책임 고지
 
